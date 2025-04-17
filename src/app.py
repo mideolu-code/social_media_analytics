@@ -3,20 +3,73 @@ import streamlit as st
 import plotly.express as px
 from textblob import TextBlob
 
-
 # =====================================
-# Data Loading & Preprocessing
+# Page Config & Custom CSS
 # =====================================
 st.set_page_config(page_title="Social Media Analytics POC", layout="wide")
 
+st.markdown(
+    """
+<style>
+    .header {
+        font-size: 2.5em !important;
+        color: #2E86AB !important;
+        border-bottom: 2px solid #F18F01;
+        padding-bottom: 10px;
+    }
+    .metric-card {
+        background-color: #F6F7F8;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-bottom: 15px;
+    }
+    .critical-alert {
+        background-color: #FFEBEE !important;
+        border-left: 4px solid #C62828;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 10px 0;
+    }
+    .positive {
+        color: #2E7D32 !important;
+    }
+    .negative {
+        color: #C62828 !important;
+    }
+    .tech-term {
+        background-color: #E3F2FD;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-weight: 500;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
+# =====================================
+# Header with Logo
+# =====================================
+col1, col2 = st.columns([1, 6])
+with col1:
+    st.image("https://via.placeholder.com/100x100/2E86AB/FFFFFF?text=AI", width=80)
+with col2:
+    st.markdown(
+        '<h1 class="header">Business Solutions Social Analytics</h1>',
+        unsafe_allow_html=True,
+    )
+
+
+# =====================================
+# Data Loading
+# =====================================
 @st.cache_data
 def load_data():
-    # Load posts and comments
     posts = pd.read_csv("mock_posts_biz.csv")
     comments = pd.read_csv("mock_comments_biz.csv")
 
-    # Sentiment analysis for comments
+    # Sentiment analysis
     comments["sentiment"] = comments["comment_text"].apply(
         lambda x: TextBlob(x).sentiment.polarity
     )
@@ -24,171 +77,261 @@ def load_data():
         lambda x: "Positive" if x > 0.2 else "Negative" if x < -0.2 else "Neutral"
     )
 
-    # Merge with posts
-    merged = pd.merge(
-        posts,
-        comments.groupby("post_id")["sentiment_label"]
-        .value_counts()
-        .unstack()
-        .fillna(0),
-        left_on="post_id",
-        right_index=True,
-    )
-
-    return posts, comments, merged
+    return posts, comments
 
 
-posts_df, comments_df, merged_df = load_data()
+posts_df, comments_df = load_data()
+
+# Calculate urgent issues
+urgent_issues = len(
+    comments_df[
+        (comments_df["sentiment_label"] == "Negative")
+        & (
+            comments_df["comment_text"].str.contains(
+                "urgent|critical|outage", case=False
+            )
+        )
+    ]
+)
 
 # =====================================
-# Dashboard UI
+# Executive Summary Metrics
 # =====================================
-st.title("🚀 AI-Powered Social Media Analytics")
+st.subheader("📊 Executive Summary")
+cols = st.columns(4)
+metric_styles = {"font-size": "24px", "font-weight": "bold", "margin-top": "-10px"}
 
-# ------------------
-# Key Metrics Row
-# ------------------
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Total Posts", len(posts_df))
-with col2:
-    st.metric(
-        "Avg Engagement", f"{posts_df[['likes','shares','comments']].sum().mean():.0f}"
+with cols[0]:
+    st.markdown(
+        f"""
+    <div class="metric-card">
+        <p style="font-size:14px; color:#666;">Total Posts</p>
+        <h3 style="{'; '.join(f'{k}:{v}' for k,v in metric_styles.items())}; color:#2E86AB;">{len(posts_df)}</h3>
+    </div>
+    """,
+        unsafe_allow_html=True,
     )
-with col3:
+
+with cols[1]:
+    st.markdown(
+        f"""
+    <div class="metric-card">
+        <p style="font-size:14px; color:#666;">High-Urgency Issues</p>
+        <h3 style="{'; '.join(f'{k}:{v}' for k,v in metric_styles.items())}; color:#C62828;">{urgent_issues}</h3>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with cols[2]:
     pos = comments_df[comments_df["sentiment_label"] == "Positive"].shape[0]
-    st.metric("Positive Comments", pos)
-with col4:
-    neg = comments_df[comments_df["sentiment_label"] == "Negative"].shape[0]
-    st.metric("Critical Comments", neg)
+    st.markdown(
+        f"""
+    <div class="metric-card">
+        <p style="font-size:14px; color:#666;">Positive Sentiment</p>
+        <h3 style="{'; '.join(f'{k}:{v}' for k,v in metric_styles.items())}; color:#2E7D32;">{int(pos/len(comments_df)*100)}%</h3>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
-# ------------------
-# Visualizations
-# ------------------
-# tab1, tab2, tab3 = st.tabs(["Sentiment Analysis", "Engagement Trends", "Post Details"])
+with cols[3]:
+    st.markdown(
+        f"""
+    <div class="metric-card">
+        <p style="font-size:14px; color:#666;">Avg. Engagement</p>
+        <h3 style="{'; '.join(f'{k}:{v}' for k,v in metric_styles.items())}; color:#2E86AB;">{round(posts_df[['likes','shares','comments']].mean().mean())}</h3>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+# =====================================
+# Tabbed Interface
+# =====================================
 tab1, tab2, tab3, tab4 = st.tabs(
     ["Sentiment", "Engagement", "Post Details", "Tech Insights"]
 )
 
+# ------------------
+# Sentiment Analysis
+# ------------------
 with tab1:
     col1, col2 = st.columns(2)
     with col1:
-        # Sentiment distribution
         fig = px.pie(
             comments_df,
             names="sentiment_label",
-            title="Overall User Sentiment",
+            title="<b>Overall Sentiment Distribution</b>",
             color="sentiment_label",
             color_discrete_map={
-                "Positive": "#2ecc71",
-                "Negative": "#e74c3c",
-                "Neutral": "#3498db",
+                "Positive": "#2E7D32",
+                "Negative": "#C62828",
+                "Neutral": "#2E86AB",
             },
+            hole=0.4,
         )
+        fig.update_layout(title_x=0.3)
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        # Sentiment by platform
         fig = px.bar(
             comments_df.groupby(["platform", "sentiment_label"]).size().unstack(),
-            title="Sentiment by Platform",
+            title="<b>Sentiment by Platform</b>",
             barmode="group",
+            color_discrete_map={
+                "Positive": "#2E7D32",
+                "Negative": "#C62828",
+                "Neutral": "#2E86AB",
+            },
+        )
+        fig.update_layout(
+            xaxis_title="Platform", yaxis_title="Count", plot_bgcolor="rgba(0,0,0,0)"
         )
         st.plotly_chart(fig, use_container_width=True)
 
+# ------------------
+# Engagement Trends
+# ------------------
 with tab2:
-    # Engagement timeline
     posts_df["date"] = pd.to_datetime(posts_df["date"])
     fig = px.line(
         posts_df.sort_values("date"),
         x="date",
         y=["likes", "shares", "comments"],
-        title="Engagement Over Time",
+        title="<b>Engagement Over Time</b>",
         markers=True,
+        color_discrete_sequence=["#2E86AB", "#F18F01", "#C62828"],
     )
+    fig.update_layout(xaxis_title="Date", yaxis_title="Count", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
+# ------------------
+# Post Details
+# ------------------
 with tab3:
-    # Post selector
     selected_post = st.selectbox("Select a Post", posts_df["post_text"], index=0)
-
     post_data = posts_df[posts_df["post_text"] == selected_post].iloc[0]
     post_comments = comments_df[comments_df["post_id"] == post_data["post_id"]]
 
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Post Details")
-        st.markdown(f"""
-        - **Platform**: {post_data['platform']}
-        - **Post Type**: {post_data['post_type']}
-        - **Engagement**: 
-          - 👍 {post_data['likes']} 
-          - 🔗 {post_data['shares']} 
-          - 💬 {post_data['comments']}
-        """)
+        st.markdown(
+            f"""
+        <div class="metric-card">
+            <h4>Post Details</h4>
+            <p><strong>Platform:</strong> {post_data['platform']}</p>
+            <p><strong>Type:</strong> {post_data['post_type']}</p>
+            <p><strong>Date:</strong> {post_data['date']}</p>
+            <div style="display: flex; gap: 15px; margin-top: 10px;">
+                <span>👍 {post_data['likes']}</span>
+                <span>🔗 {post_data['shares']}</span>
+                <span>💬 {post_data['comments']}</span>
+            </div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
 
     with col2:
-        st.subheader("User Reactions")
         if not post_comments.empty:
             fig = px.pie(
                 post_comments,
                 names="sentiment_label",
-                title=f"Sentiment for: {selected_post}",
+                title="<b>Sentiment for Post</b>",
                 hole=0.4,
+                color="sentiment_label",
+                color_discrete_map={
+                    "Positive": "#2E7D32",
+                    "Negative": "#C62828",
+                    "Neutral": "#2E86AB",
+                },
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.warning("No comments found for this post")
 
 # ------------------
-# Critical Comments Table
+# Tech Insights
 # ------------------
-st.subheader("⚠️ Top Critical Feedback")
-critical = comments_df[comments_df["sentiment_label"] == "Negative"].sort_values(
-    "likes", ascending=False
-)
-if not critical.empty:
-    st.dataframe(
-        critical[["comment_text", "platform", "likes"]],
-        column_config={
-            "comment_text": "Comment",
-            "platform": "Platform",
-            "likes": "Likes",
-        },
-        hide_index=True,
-    )
-else:
-    st.success("No critical comments found! 🎉")
 with tab4:
-    st.subheader("Technical Topic Breakdown")
+    st.subheader("🔍 Technical Deep Dive")
 
-    # Tech term frequency
-    tech_terms = ["AI", "cloud", "cybersecurity", "API", "compliance"]
-    term_counts = {
-        term: comments_df["comment_text"].str.contains(term, case=False).sum()
-        for term in tech_terms
+    tech_terms = {
+        "AI": comments_df["comment_text"]
+        .str.contains("AI|artificial intelligence", case=False)
+        .sum(),
+        "Cloud": comments_df["comment_text"]
+        .str.contains("cloud|AWS|Azure", case=False)
+        .sum(),
+        "Security": comments_df["comment_text"]
+        .str.contains("security|cyber|CVE", case=False)
+        .sum(),
+        "API": comments_df["comment_text"]
+        .str.contains("API|integration", case=False)
+        .sum(),
     }
 
-    fig = px.bar(
-        x=list(term_counts.keys()),
-        y=list(term_counts.values()),
-        title="Most Discussed Technical Topics",
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        fig = px.treemap(
+            names=list(tech_terms.keys()),
+            parents=[""] * len(tech_terms),
+            values=list(tech_terms.values()),
+            title="<b>Technical Topic Volume</b>",
+            color=list(tech_terms.values()),
+            color_continuous_scale="Blues",
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-    # Negative comments by topic
-    st.subheader("Critical Feedback by Topic")
-    negative_comments = comments_df[comments_df["sentiment_label"] == "Negative"]
-    topic_complaints = {}
-
-    for term in tech_terms:
-        topic_complaints[term] = (
-            negative_comments["comment_text"].str.contains(term, case=False).sum()
+    with col2:
+        negative_comments = comments_df[comments_df["sentiment_label"] == "Negative"]
+        st.markdown(
+            """
+        <div style="background-color:#F6F7F8; padding:20px; border-radius:10px;">
+            <h4 style="color:#2E86AB; margin-top:0;">Top Technical Complaints</h4>
+            <ul style="padding-left:20px;">
+        """
+            + "\n".join(
+                [
+                    f"<li><span class='tech-term'>{term}</span>: {negative_comments['comment_text'].str.contains(term, case=False).sum()} complaints</li>"
+                    for term in tech_terms.keys()
+                ]
+            )
+            + """
+            </ul>
+        </div>
+        """,
+            unsafe_allow_html=True,
         )
 
-    fig = px.pie(
-        names=list(topic_complaints.keys()),
-        values=list(topic_complaints.values()),
-        title="Negative Comments by Technical Area",
+# ------------------
+# Critical Alerts
+# ------------------
+critical = comments_df[
+    (comments_df["sentiment_label"] == "Negative")
+    & (comments_df["comment_text"].str.contains("urgent|critical|outage", case=False))
+].sort_values("likes", ascending=False)
+
+if not critical.empty:
+    st.markdown(
+        """
+    <div class="critical-alert">
+        <h3 style="color:#C62828; margin-top:0;">🚨 Critical Issues Needing Attention</h3>
+    </div>
+    """,
+        unsafe_allow_html=True,
     )
-    st.plotly_chart(fig, use_container_width=True)
+
+    for _, row in critical.head(3).iterrows():
+        st.markdown(
+            f"""
+        <div style="padding:12px; margin:8px 0; background-color:#FFF5F5; border-radius:5px; border-left: 3px solid #C62828;">
+            <p style="margin:0; font-weight:bold;">{row['comment_text']}</p>
+            <p style="margin:4px 0 0 0; font-size:0.8em; color:#666;">
+                <strong>{row['platform']}</strong> • {row['date']} • 👍 {row['likes']} likes
+            </p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
