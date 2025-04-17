@@ -53,7 +53,10 @@ st.markdown(
 # =====================================
 col1, col2 = st.columns([1, 6])
 with col1:
-    st.image("https://via.placeholder.com/100x100/2E86AB/FFFFFF?text=AI", width=80)
+    st.image(
+        "https://www.aimtechnologies.co/wp-content/uploads/2023/08/Data-Analytics-On-Social-Media.jpg",
+        width=80,
+    )
 with col2:
     st.markdown(
         '<h1 class="header">Business Solutions Social Analytics</h1>',
