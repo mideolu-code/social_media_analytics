@@ -128,11 +128,15 @@ with cols[1]:
 
 with cols[2]:
     pos = comments_df[comments_df["sentiment_label"] == "Positive"].shape[0]
+    if len(comments_df) > 0:
+        positive_percentage = int(pos / len(comments_df) * 100)
+    else:
+        positive_percentage = 0  # Default to 0% if no comments are available
     st.markdown(
         f"""
     <div class="metric-card">
         <p style="font-size:14px; color:#666;">Positive Sentiment</p>
-        <h3 style="{'; '.join(f'{k}:{v}' for k,v in metric_styles.items())}; color:#2E7D32;">{int(pos/len(comments_df)*100)}%</h3>
+        <h3 style="{'; '.join(f'{k}:{v}' for k,v in metric_styles.items())}; color:#2E7D32;">{positive_percentage}%</h3>
     </div>
     """,
         unsafe_allow_html=True,
